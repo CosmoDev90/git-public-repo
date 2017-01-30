@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>GitHub Public Repo App</title>
+  <link href="https://fonts.googleapis.com/css?family=Play" rel="stylesheet">
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+  <script src="js/libs/jquery-3.1.1.js"></script>
+
+
+<div class="header-bar"><form><span id="sort-btns">Sort:<button class="btn-proId active-btn">Project ID</button> | <button class="btn-userId">User ID</button> | <button class="btn-name">Name</button></span><span id="filter-btns">Filter:  <select class="project-filter">
+  <option value="0">All User IDs</option>
+</select> </span></form>
+</div>
+
+<div class="id-wrapper">
+<span style="color: #fff;">Loading</span>
+</div>
+
+<div id="footer"></div>
+
+  <script type="application/javascript">
+
+  console.log('Now Running');
+
+$(document).ready(function(){
+
+
+//*****// set init load
+
+function init (){
+
+  $.getJSON('https://api.github.com/repositories', function(results){
+
+      // User no. projects count
+      var idArray = [];
+      $.map(results, function(status, key){
+        // Add ids to array
+        $(idArray.push(status.owner.id));
+      });
+
+      // count repos per user id 'No. Projects counter'
+      var uniqID = [];
+      var countedRepos = idArray.reduce(function(allIDs, id) { 
+      if (id in allIDs) {
+        allIDs[id]++;
+      }
+      else {
+        allIDs[id] = 1;
+        uniqID.push(id);
+      }
+      return allIDs;
+      }, {});
+
+      //  console.log(uniqID.sort(function(a,b){return a-b}));
+
+      // set filter options
+      uniqID.sort(function(a,b){return a-b;});
+      $.map(uniqID, function(id){
+        // set filter option ids
+        $('.project-filter').append(
+          '<option value="'+id+
+          '">User ID: '+id+'</option>'
+        );
+
+      });
+
+      //create initial html load
+      pageLoad(results, countedRepos);
+
+  });
+
+
+//*****// Refresh on filter update - without recalling the json
+
+      function pageLoad (results, countedRepos){
+
+      var showIds = function (){
+      // use map to match ID to class '.idcount-'
+        $.map(countedRepos, function(num, key){
+        // console.log(key+num);
+        $('.idcount-'+key).text(num);
+        });
+      };
+
+      // set default filter state (show all)
+      var filtered = results;
+      
+      // *** User controls *** //
+      $(".project-filter").change(function(){
+        console.log($(this).val());
+        var selectedID = ($(this).val());
+        // Filter function - filter 'results' output to 'filtered'
+        filtered = [];
+        $.map(results, function(status, key){
+      //    console.log(status.owner.id);
+      //    console.log('selectedID: '+selectedID);
+          if (selectedID > 0){
+            if (status.owner.id == selectedID){
+              $(filtered.push(status));
+              renderPage();
+            }
+          }else{
+          // if no filter show all
+          filtered = results;
+          renderPage();
+          }
+        });
+      });
+
+
+      // sort functions after filtered content
+
+      $('#sort-btns').on('click', '.btn-proId', function(e){
+        e.preventDefault();
+        $(this).addClass('active-btn');
+        $('.btn-userId, .btn-name').removeClass('active-btn');
+        filtered.sort(function(a,b){
+          return a.id - b.id;
+        });
+      //  console.log(filtered);
+        renderPage();
+      });
+
+
+      $('#sort-btns').on('click', '.btn-userId', function(e){
+        e.preventDefault();
+        $(this).addClass('active-btn');
+        $('.btn-proId, .btn-name').removeClass('active-btn');
+        filtered.sort(function(a,b){
+          return a.owner.id - b.owner.id;
+        });
+      //  console.log(filtered);
+        renderPage();
+      });
+
+      $('#sort-btns').on('click', '.btn-name', function(e){
+        e.preventDefault();
+        $(this).addClass('active-btn');
+        $('.btn-userId, .btn-proId').removeClass('active-btn');
+        filtered.sort(function(a,b){
+          var nameA = a.owner.login.toUpperCase();
+          var nameB = b.owner.login.toUpperCase();
+          if (nameA < nameB){
+            return -1;
+          }
+          if (nameA > nameB){
+            return 1;
+          }
+          //if name is equal
+          return 0;
+        });
+      //  console.log(filtered);
+        renderPage();
+      });
+
+      //Hover elements
+     $('.id-wrapper').on('mouseenter', '.projectName', function(e){
+        var singleProj = $(this).closest('.id-card');
+        var fullName = singleProj.data('fullname');
+        projectInfo(fullName, singleProj);
+        singleProj.find('.hovertxt').addClass('showtxt');
+      });
+      
+	$('.id-wrapper').on('mouseleave', '.projectName', function(e){
+		$('.hovertxt').removeClass('showtxt');
+	});
+	
+	//loads project specific info when requested (on project name hover)
+    function projectInfo (fullName, hoverId){
+      $.getJSON('https://api.github.com/repos/'+fullName, function(status){
+        var info = ('<hr><center>Project Stats</center><hr>'+
+        			'Subscribers: '+status.subscribers_count)+'<br>'+
+        			'Watchers: '+status.watchers_count+'<br />&nbsp;<br />';
+        hoverId.find('.hovertxt').html(info);
+        console.log(info);
+      });
+    }
+
+	// calling renderPage allows for el refresh without reloading json from server
+    function renderPage (){
+
+      var resElements = $.map(filtered, function(status, i){
+      
+      var item = $('<div class="id-card" id="id-'+i+'" data-fullname="'+status.full_name+'" data-id="'+i+'"></div>');
+      $('<p><img src="'+status.owner.avatar_url+'" class="idimg" width="70px">'+'<span class="idnum">ID: '+status.owner.id+'</span><br>'+
+        'Name: '+status.owner.login+'<br>&nbsp;<br>'+
+        'Project: <a class="projectName" href="'+status.html_url+'" target="_blank">'+status.name+'</a><br><div class="hovertxt"></div>'+
+        'Project ID: '+status.id+'<br>'+
+        '</p>').appendTo(item);
+      $('<div class="id-btm"><hr><center><b>No. Projects: '+'<span class="idcount-'+status.owner.id+'"></span>'+'</b><br></center>'+'</div>').appendTo(item);
+      return item;
+      });
+
+      // Return HTML elements
+      $('.id-wrapper').html(resElements);
+      showIds();
+    }
+
+  renderPage();
+
+  }; 
+
+
+// UX View elements
+
+$('.id-wrapper').on('mouseenter', '.id-card',function(){
+    $(this).animate({'top':'-10px'});
+});
+
+$('.id-wrapper').on('mouseleave', '.id-card',function(){
+    $(this).animate({'top':'0px'}, 'fast');
+});
+
+console.log('finished load');
+}
+
+//Start the initial load
+init();
+
+
+});
+  </script>
+
+
+  </body>
+  </html>
+
